@@ -12,7 +12,7 @@
   --acc:#6366f1;--pur:#a78bfa;--gold:#fbbf24;
   --grn:#4ade80;--yel:#facc15;--red:#f87171;
 }
-body{font-family:'Georgia','바탕',serif;background:var(--bg);color:var(--txt);min-height:100vh;display:flex;flex-direction:column;overflow:hidden}
+body{font-family:'Georgia','바탕',serif;background:var(--bg);color:var(--txt);height:100vh;display:flex;flex-direction:column;overflow:hidden}
 header{background:#0a1628;border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;z-index:10}
 .logo{width:34px;height:34px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
 .logo-text h1{font-size:15px;font-weight:700;color:#f1f5f9;letter-spacing:-.02em}
@@ -50,10 +50,10 @@ header{background:#0a1628;border-bottom:1px solid var(--border);padding:12px 20p
 .sdot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}
 #pdf-wrap{position:relative;display:none;width:100%}
 #pdf-wrap canvas{display:block;border-radius:8px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.5)}
-#text-layer{position:absolute;top:0;left:0;overflow:hidden}
-.ws,.ow{position:absolute;cursor:pointer;border-radius:2px;color:transparent;white-space:nowrap;overflow:hidden;transition:background .1s}
-.ws:hover,.ow:hover{background:rgba(99,102,241,.3)!important}
-.ws.sel,.ow.sel{background:rgba(99,102,241,.5)!important}
+#text-layer{position:absolute;top:0;left:0;overflow:hidden;line-height:1}
+#text-layer span[role="presentation"]{position:absolute;cursor:pointer;color:transparent;white-space:pre;transform-origin:0% 0%;font-size:var(--font-height);transform:scaleX(var(--scale-x,1)) rotate(var(--rotate,0deg))}
+.ow{position:absolute;cursor:pointer;border-radius:2px;color:transparent;white-space:nowrap;overflow:hidden}
+#word-highlight{position:fixed;pointer-events:none;background:rgba(99,102,241,.45);border-radius:2px;z-index:9998;display:none}
 #popup{position:fixed;z-index:9999;width:310px;background:var(--bg);border-radius:11px;box-shadow:0 12px 48px rgba(0,0,0,.7);display:none;overflow:hidden}
 .ph{padding:12px 14px 9px;border-bottom:1px solid var(--surf2);display:flex;justify-content:space-between;align-items:flex-start}
 .pw{font-size:21px;font-weight:700;color:#f1f5f9;letter-spacing:-.02em}
@@ -236,7 +236,6 @@ const LL = {'하':'BASIC','중':'INTER','상':'ADV'};
 let docs = []; // {id, name, pdfDoc, totPages, curPage, scale, ocrCache}
 let activeDocId = null;
 let docSeq = 0;
-let selSpan = null;
 let wordbook = JSON.parse(sessionStorage.getItem('wb')||'[]');
 let looked = 0;
 let tWorker = null;
@@ -377,9 +376,18 @@ window.changeZoom = async function(d) {
 };
 
 // ── Render ──
+// The canvas is shared/reused across every page and document, so a render
+// that's still in flight when the user flips pages or switches documents
+// must be cancelled first — otherwise pdf.js refuses the next render() with
+// "Cannot use the same canvas during multiple render() operations", and
+// whichever call happens to finish last silently wins the DOM.
+let currentRenderTask = null;
+let renderSeq = 0;
+
 async function renderPage(num) {
   const doc = activeDoc();
   if (!doc) return;
+  const renderId = ++renderSeq;
   doc.curPage = num;
   document.getElementById('cp').textContent = num;
   document.getElementById('tp').textContent = doc.totPages;
@@ -387,11 +395,26 @@ async function renderPage(num) {
   document.getElementById('bn').disabled = num >= doc.totPages;
 
   const page = await doc.pdfDoc.getPage(num);
+  if (renderId !== renderSeq) return; // superseded while awaiting getPage()
   const vp = page.getViewport({ scale: doc.scale });
   const canvas = document.getElementById('pdfcanvas');
   const ctx = canvas.getContext('2d');
+
+  if (currentRenderTask) {
+    try { currentRenderTask.cancel(); } catch (e) {}
+    currentRenderTask = null;
+  }
   canvas.width = vp.width; canvas.height = vp.height;
-  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  const task = page.render({ canvasContext: ctx, viewport: vp });
+  currentRenderTask = task;
+  try {
+    await task.promise;
+  } catch (e) {
+    if (e?.name === 'RenderingCancelledException') return; // a newer render took over
+    throw e;
+  }
+  if (currentRenderTask === task) currentRenderTask = null;
+  if (renderId !== renderSeq) return; // a newer render started while we awaited
 
   const tl = document.getElementById('text-layer');
   tl.innerHTML = '';
@@ -401,13 +424,22 @@ async function renderPage(num) {
   const ratio = displayW / vp.width;
   tl.style.transform = `scale(${ratio})`;
 
-  // Try PDF text layer
+  // Real text PDF → pdf.js's own TextLayer (correct per-glyph metrics/positioning).
+  // Scanned/image PDF with no text at all → OCR.
   const tc = await page.getTextContent();
-  const words = extractTextWords(tc, vp, doc.scale);
-  if (words.length > 5) {
-    buildTextLayer(tl, words);
+  if (renderId !== renderSeq) return; // superseded while awaiting getTextContent()
+  const hasRealText = tc.items.some(it => it.str && it.str.trim());
+  if (hasRealText) {
+    const textLayer = new pdfjsLib.TextLayer({ textContentSource: tc, container: tl, viewport: vp });
+    // TextLayer's constructor sizes the container via CSS custom properties
+    // (--total-scale-factor etc.) that only exist in pdf.js's own full-viewer
+    // stylesheet, which we don't load — so pin the container back to the
+    // plain pixel size we already computed above.
+    tl.style.width = vp.width + 'px';
+    tl.style.height = vp.height + 'px';
+    await textLayer.render();
+    wireTextLayerClicks(tl);
   } else {
-    // OCR path
     if (doc.ocrCache[num]) {
       buildOCRLayer(tl, doc.ocrCache[num]);
     } else {
@@ -416,41 +448,46 @@ async function renderPage(num) {
   }
 }
 
-function extractTextWords(tc, vp, scale) {
-  const result = [];
-  // item.transform/item.width from pdf.js getTextContent() are in unscaled
-  // PDF user space (not the render viewport), so they must be multiplied by
-  // the current render `scale` to line up with the canvas/text-layer pixels.
-  for (const item of tc.items) {
-    if (!item.str || !item.str.trim()) continue;
-    const [, , , , tx, ty] = item.transform;
-    const itemW = (item.width || 0) * scale;
-    const itemH = (item.height || 14) * scale;
-    const parts = item.str.split(/\s+/);
-    let off = 0, total = item.str.length;
-    for (const raw of parts) {
-      if (!raw) { off++; continue; }
-      const clean = raw.replace(/[^a-zA-Z'-]/g, '');
-      if (clean.length >= 2) {
-        const rx = off / Math.max(total, 1);
-        const rw = raw.length / Math.max(total, 1);
-        result.push({ word: clean, x: tx * scale + rx * itemW, y: vp.height - ty * scale, w: Math.max(rw * itemW, clean.length * 7), h: itemH });
-      }
-      off += raw.length + 1;
-    }
-  }
-  return result;
+// Find the exact word under a click inside a pdf.js TextLayer span, using the
+// browser's own text hit-testing (correct for any font/kerning) instead of
+// estimating word position from character counts.
+function wireTextLayerClicks(container) {
+  container.querySelectorAll('span[role="presentation"]').forEach(span => {
+    if (!span.textContent || !span.textContent.trim()) return;
+    span.addEventListener('click', e => {
+      e.stopPropagation();
+      const hit = wordAtPoint(e.clientX, e.clientY);
+      if (hit) onWordHit(hit.word, hit.rect, e);
+    });
+  });
 }
 
-function buildTextLayer(layer, words) {
-  for (const { word, x, y, w, h } of words) {
-    const s = document.createElement('span');
-    s.className = 'ws';
-    s.dataset.word = word;
-    s.style.cssText = `left:${x}px;top:${y-h}px;width:${w}px;height:${h+6}px;`;
-    s.addEventListener('click', e => { e.stopPropagation(); onWord(word, e); });
-    layer.appendChild(s);
+function wordAtPoint(x, y) {
+  let node, offset;
+  if (document.caretRangeFromPoint) {
+    const r = document.caretRangeFromPoint(x, y);
+    if (!r) return null;
+    node = r.startContainer; offset = r.startOffset;
+  } else if (document.caretPositionFromPoint) {
+    const p = document.caretPositionFromPoint(x, y);
+    if (!p) return null;
+    node = p.offsetNode; offset = p.offset;
+  } else {
+    return null;
   }
+  if (node.nodeType !== Node.TEXT_NODE) return null;
+  const text = node.textContent;
+  const isWordChar = c => /[a-zA-Z'-]/.test(c);
+  let start = offset, end = offset;
+  while (start > 0 && isWordChar(text[start - 1])) start--;
+  while (end < text.length && isWordChar(text[end])) end++;
+  const clean = text.slice(start, end).replace(/[^a-zA-Z'-]/g, '');
+  if (clean.length < 2) return null;
+  const range = document.createRange();
+  range.setStart(node, start);
+  range.setEnd(node, end);
+  const rect = range.getClientRects()[0] || range.getBoundingClientRect();
+  return { word: clean, rect };
 }
 
 async function runOCR(doc, num, canvas, layer, vp) {
@@ -489,15 +526,29 @@ function buildOCRLayer(layer, items) {
     s.className = 'ow';
     s.dataset.word = word;
     s.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;`;
-    s.addEventListener('click', e => { e.stopPropagation(); onWord(word, e); });
+    s.addEventListener('click', e => { e.stopPropagation(); onWordHit(word, s.getBoundingClientRect(), e); });
     layer.appendChild(s);
   }
 }
 
 // ── Word click ──
-function onWord(word, e) {
-  if (selSpan) selSpan.classList.remove('sel');
-  selSpan = e.target; selSpan.classList.add('sel');
+function wordHighlightEl() {
+  let el = document.getElementById('word-highlight');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'word-highlight';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function onWordHit(word, rect, e) {
+  const hl = wordHighlightEl();
+  hl.style.left = rect.left + 'px';
+  hl.style.top = rect.top + 'px';
+  hl.style.width = rect.width + 'px';
+  hl.style.height = rect.height + 'px';
+  hl.style.display = 'block';
   looked++; document.getElementById('ct-l').textContent = looked;
   showPopup(word, e.clientX, e.clientY);
 }
@@ -548,7 +599,7 @@ function showPopup(word, cx, cy) {
 
 window.closePopup = function() {
   document.getElementById('popup').style.display = 'none';
-  if (selSpan) { selSpan.classList.remove('sel'); selSpan = null; }
+  wordHighlightEl().style.display = 'none';
 };
 
 // ── Wordbook ──
