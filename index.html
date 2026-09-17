@@ -24,6 +24,14 @@ header{background:#0a1628;border-bottom:1px solid var(--border);padding:12px 20p
 .panel{flex:1;overflow:auto;padding:20px;display:none}
 .panel.on{display:block}
 .drop-zone{border:2px dashed var(--border);border-radius:12px;padding:36px;text-align:center;cursor:pointer;transition:.2s;margin-bottom:16px}
+.doc-list{display:none;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.doc-chip{display:flex;align-items:center;gap:6px;background:var(--surf);border:1px solid var(--surf2);border-radius:20px;padding:5px 6px 5px 12px;font-family:sans-serif;font-size:11px;color:var(--txt2);cursor:pointer;max-width:220px}
+.doc-chip.on{border-color:var(--acc);color:var(--txt);background:rgba(99,102,241,.12)}
+.doc-chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
+.doc-chip-x{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:12px;padding:2px 5px;border-radius:50%;flex-shrink:0;line-height:1}
+.doc-chip-x:hover{background:rgba(255,255,255,.1);color:var(--txt)}
+.doc-add-chip{background:none;border:1px dashed var(--surf2);border-radius:20px;padding:5px 12px;font-family:sans-serif;font-size:11px;color:var(--txt3);cursor:pointer}
+.doc-add-chip:hover{color:var(--txt2);border-color:var(--acc)}
 .drop-zone:hover,.drop-zone.drag{border-color:var(--acc);background:rgba(99,102,241,.06)}
 .drop-zone .icon{font-size:40px;display:block;margin-bottom:10px}
 .drop-zone p{font-family:sans-serif;font-size:13px;color:var(--txt2);line-height:1.6}
@@ -97,12 +105,13 @@ header{background:#0a1628;border-bottom:1px solid var(--border);padding:12px 20p
       <p style="margin-top:6px">텍스트 PDF · 스캔 이미지 PDF 모두 지원</p>
       <button class="up-btn" onclick="event.stopPropagation();document.getElementById('fi').click()">파일 선택</button>
     </div>
-    <input type="file" id="fi" accept=".pdf" style="display:none">
+    <input type="file" id="fi" accept=".pdf" multiple style="display:none">
   </div>
+  <div class="doc-list" id="doc-list"></div>
   <div class="ocr-bar" id="ocr-bar"><div class="sp"></div><div id="ocr-msg">OCR 처리 중…</div></div>
   <div class="tip-box" id="tip-box">
     💡 <strong>사용법:</strong> PDF 위의 단어를 클릭하면 수능 어휘 DB에서 뜻이 표시됩니다.
-    이미지(스캔) PDF는 OCR로 자동 인식합니다.
+    이미지(스캔) PDF는 OCR로 자동 인식합니다. 여러 문서를 열어두고 위 목록에서 전환하거나 닫을 수 있습니다.
   </div>
   <div class="stats" id="stats">
     <div><span class="sdot" style="background:var(--grn)"></span><span style="font-family:sans-serif;font-size:11px">기본 <b id="ct-b">0</b></span></div>
@@ -116,7 +125,7 @@ header{background:#0a1628;border-bottom:1px solid var(--border);padding:12px 20p
     <button onclick="changePage(1)" id="bn">다음 ▶</button>
     <button onclick="changeZoom(-.2)">−</button>
     <button onclick="changeZoom(.2)">+</button>
-    <button onclick="resetPDF()" style="margin-left:auto;color:var(--txt3)">📄 다른 파일</button>
+    <button onclick="document.getElementById('fi').click()" style="margin-left:auto;color:var(--txt3)">📄 문서 추가</button>
   </div>
   <div id="pdf-loader" class="loader" style="display:none"><div class="lsp"></div><div>PDF 불러오는 중…</div></div>
   <div id="pdf-wrap">
@@ -159,11 +168,23 @@ const LC = {'하':'var(--grn)','중':'var(--yel)','상':'var(--red)'};
 const LL = {'하':'BASIC','중':'INTER','상':'ADV'};
 
 // ── State ──
-let pdfDoc=null, curPage=1, totPages=0, scale=1.4, selSpan=null;
+// docs: every open document, so you can read one, switch to another, and
+// come back later without losing your place (page/zoom/OCR cache per doc).
+let docs = []; // {id, name, pdfDoc, totPages, curPage, scale, ocrCache}
+let activeDocId = null;
+let docSeq = 0;
+let selSpan = null;
 let wordbook = JSON.parse(sessionStorage.getItem('wb')||'[]');
 let looked = 0;
-let ocrCache = {}; // pageNum → [{word,x,y,w,h}]
 let tWorker = null;
+
+function activeDoc() {
+  return docs.find(d => d.id === activeDocId) || null;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 // ── Tab ──
 window.showTab = function(id, btn) {
@@ -196,67 +217,111 @@ async function getTWorker() {
 }
 
 // ── File input ──
-document.getElementById('fi').addEventListener('change', function() {
-  if (this.files[0]) loadPDFFile(this.files[0]);
+document.getElementById('fi').addEventListener('change', async function() {
+  for (const f of this.files) await addDocument(f);
+  this.value = '';
 });
 
 const dz = document.getElementById('dz');
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
 dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
-dz.addEventListener('drop', e => {
+dz.addEventListener('drop', async e => {
   e.preventDefault(); dz.classList.remove('drag');
-  const f = e.dataTransfer.files[0];
-  if (f && f.type === 'application/pdf') loadPDFFile(f);
+  for (const f of e.dataTransfer.files) {
+    if (f.type === 'application/pdf') await addDocument(f);
+  }
 });
 
-async function loadPDFFile(file) {
+// ── Documents (open several, switch between them, close/release one) ──
+async function addDocument(file) {
   document.getElementById('upload-area').style.display = 'none';
   document.getElementById('pdf-loader').style.display = 'block';
   const ab = await file.arrayBuffer();
-  pdfDoc = await pdfjsLib.getDocument({ data: ab }).promise;
-  totPages = pdfDoc.numPages; curPage = 1;
+  const pdfDoc = await pdfjsLib.getDocument({ data: ab }).promise;
+  const doc = {
+    id: ++docSeq,
+    name: file.name.replace(/\.pdf$/i, ''),
+    pdfDoc,
+    totPages: pdfDoc.numPages,
+    curPage: 1,
+    scale: 1.4,
+    ocrCache: {} // pageNum → [{word,x,y,w,h}]
+  };
+  docs.push(doc);
   document.getElementById('pdf-loader').style.display = 'none';
+  await switchDoc(doc.id);
+}
+
+window.switchDoc = async function(id) {
+  const doc = docs.find(d => d.id === id);
+  if (!doc) return;
+  activeDocId = id;
+  closePopup();
+  document.getElementById('doc-list').style.display = 'flex';
   document.getElementById('pdf-wrap').style.display = 'block';
   document.getElementById('ctrl-bar').style.display = 'flex';
   document.getElementById('tip-box').style.display = 'block';
   document.getElementById('stats').classList.add('show');
-  document.getElementById('tp').textContent = totPages;
-  await renderPage(curPage);
-}
-
-window.resetPDF = function() {
-  pdfDoc=null; curPage=1; totPages=0; ocrCache={};
-  ['pdf-wrap','ctrl-bar','tip-box','ocr-bar'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  });
-  document.getElementById('stats').classList.remove('show');
-  document.getElementById('upload-area').style.display = 'block';
-  document.getElementById('fi').value = '';
-  closePopup();
+  renderDocList();
+  await renderPage(doc.curPage);
 };
 
+window.closeDoc = function(id) {
+  const idx = docs.findIndex(d => d.id === id);
+  if (idx === -1) return;
+  const wasActive = activeDocId === id;
+  docs.splice(idx, 1);
+  if (!wasActive) { renderDocList(); return; }
+  activeDocId = null;
+  if (docs.length) {
+    switchDoc(docs[Math.min(idx, docs.length - 1)].id);
+  } else {
+    ['pdf-wrap','ctrl-bar','tip-box','ocr-bar','doc-list'].forEach(elId => {
+      const el = document.getElementById(elId);
+      if (el) el.style.display = 'none';
+    });
+    document.getElementById('stats').classList.remove('show');
+    document.getElementById('upload-area').style.display = 'block';
+  }
+};
+
+function renderDocList() {
+  const list = document.getElementById('doc-list');
+  list.innerHTML = docs.map(d => `
+    <div class="doc-chip ${d.id === activeDocId ? 'on' : ''}" onclick="switchDoc(${d.id})">
+      <span class="doc-chip-name">${escapeHtml(d.name)}</span>
+      <button class="doc-chip-x" onclick="event.stopPropagation();closeDoc(${d.id})" title="닫기(해제)">✕</button>
+    </div>`).join('') + '<button class="doc-add-chip" onclick="document.getElementById(\'fi\').click()">+ 문서 추가</button>';
+}
+
 window.changePage = async function(d) {
-  const n = curPage + d;
-  if (n < 1 || n > totPages) return;
-  curPage = n; closePopup();
-  await renderPage(curPage);
+  const doc = activeDoc();
+  if (!doc) return;
+  const n = doc.curPage + d;
+  if (n < 1 || n > doc.totPages) return;
+  doc.curPage = n; closePopup();
+  await renderPage(n);
 };
 
 window.changeZoom = async function(d) {
-  scale = Math.max(.6, Math.min(3.0, scale + d));
-  closePopup(); await renderPage(curPage);
+  const doc = activeDoc();
+  if (!doc) return;
+  doc.scale = Math.max(.6, Math.min(3.0, doc.scale + d));
+  closePopup(); await renderPage(doc.curPage);
 };
 
 // ── Render ──
 async function renderPage(num) {
-  if (!pdfDoc) return;
+  const doc = activeDoc();
+  if (!doc) return;
+  doc.curPage = num;
   document.getElementById('cp').textContent = num;
+  document.getElementById('tp').textContent = doc.totPages;
   document.getElementById('bp').disabled = num <= 1;
-  document.getElementById('bn').disabled = num >= totPages;
+  document.getElementById('bn').disabled = num >= doc.totPages;
 
-  const page = await pdfDoc.getPage(num);
-  const vp = page.getViewport({ scale });
+  const page = await doc.pdfDoc.getPage(num);
+  const vp = page.getViewport({ scale: doc.scale });
   const canvas = document.getElementById('pdfcanvas');
   const ctx = canvas.getContext('2d');
   canvas.width = vp.width; canvas.height = vp.height;
@@ -272,20 +337,20 @@ async function renderPage(num) {
 
   // Try PDF text layer
   const tc = await page.getTextContent();
-  const words = extractTextWords(tc, vp);
+  const words = extractTextWords(tc, vp, doc.scale);
   if (words.length > 5) {
-    buildTextLayer(tl, words, vp);
+    buildTextLayer(tl, words);
   } else {
     // OCR path
-    if (ocrCache[num]) {
-      buildOCRLayer(tl, ocrCache[num]);
+    if (doc.ocrCache[num]) {
+      buildOCRLayer(tl, doc.ocrCache[num]);
     } else {
-      await runOCR(num, canvas, tl, vp);
+      await runOCR(doc, num, canvas, tl, vp);
     }
   }
 }
 
-function extractTextWords(tc, vp) {
+function extractTextWords(tc, vp, scale) {
   const result = [];
   // item.transform/item.width from pdf.js getTextContent() are in unscaled
   // PDF user space (not the render viewport), so they must be multiplied by
@@ -322,10 +387,10 @@ function buildTextLayer(layer, words) {
   }
 }
 
-async function runOCR(num, canvas, layer, vp) {
+async function runOCR(doc, num, canvas, layer, vp) {
   const bar = document.getElementById('ocr-bar');
   bar.style.display = 'flex';
-  document.getElementById('ocr-msg').textContent = `이미지 PDF OCR 처리 중… (${num}/${totPages}페이지) 잠시 기다려주세요`;
+  document.getElementById('ocr-msg').textContent = `이미지 PDF OCR 처리 중… (${num}/${doc.totPages}페이지) 잠시 기다려주세요`;
   try {
     const tw = await getTWorker();
     const url = canvas.toDataURL('image/png');
@@ -342,7 +407,7 @@ async function runOCR(num, canvas, layer, vp) {
         w: (w.bbox.x1 - w.bbox.x0) * sw, h: (w.bbox.y1 - w.bbox.y0) * sh
       });
     }
-    ocrCache[num] = items;
+    doc.ocrCache[num] = items;
     buildOCRLayer(layer, items);
   } catch(e) {
     document.getElementById('ocr-msg').textContent = 'OCR 오류 — 파일을 다시 시도해 보세요';
@@ -447,8 +512,8 @@ window.clearWB = function() {
 // ── Keys ──
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closePopup();
-  if (e.key === 'ArrowRight' && pdfDoc) changePage(1);
-  if (e.key === 'ArrowLeft' && pdfDoc) changePage(-1);
+  if (e.key === 'ArrowRight' && activeDoc()) changePage(1);
+  if (e.key === 'ArrowLeft' && activeDoc()) changePage(-1);
 });
 
 updateBadge();
