@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>수능 어휘 사전 — 오프라인</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f172a;--surf:#111827;--surf2:#1e293b;--border:#1e3a5f;
+  --txt:#e2e8f0;--txt2:#94a3b8;--txt3:#64748b;
+  --acc:#6366f1;--pur:#a78bfa;--gold:#fbbf24;
+  --grn:#4ade80;--yel:#facc15;--red:#f87171;
+}
+body{font-family:'Georgia','바탕',serif;background:var(--bg);color:var(--txt);min-height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{background:#0a1628;border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;z-index:10}
+.logo{width:34px;height:34px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.logo-text h1{font-size:15px;font-weight:700;color:#f1f5f9;letter-spacing:-.02em}
+.logo-text p{font-size:10px;color:var(--txt3);font-family:sans-serif;margin-top:1px}
+.hdr-tabs{margin-left:auto;display:flex;gap:5px}
+.tbtn{padding:5px 12px;border-radius:6px;border:none;font-size:11px;font-family:sans-serif;cursor:pointer;background:var(--surf2);color:var(--txt2);transition:.15s}
+.tbtn.on{background:var(--acc);color:#fff}
+.main{flex:1;display:flex;overflow:hidden}
+.panel{flex:1;overflow:auto;padding:20px;display:none}
+.panel.on{display:block}
+.drop-zone{border:2px dashed var(--border);border-radius:12px;padding:36px;text-align:center;cursor:pointer;transition:.2s;margin-bottom:16px}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--acc);background:rgba(99,102,241,.06)}
+.drop-zone .icon{font-size:40px;display:block;margin-bottom:10px}
+.drop-zone p{font-family:sans-serif;font-size:13px;color:var(--txt2);line-height:1.6}
+.up-btn{display:inline-block;margin-top:12px;padding:7px 18px;background:var(--acc);color:#fff;border-radius:7px;font-family:sans-serif;font-size:12px;font-weight:600;cursor:pointer;border:none}
+.ocr-bar{background:#1c1a0a;border:1px solid #3d3200;border-radius:8px;padding:10px 14px;font-family:sans-serif;font-size:12px;color:var(--gold);display:none;align-items:center;gap:10px;margin-bottom:14px}
+.ocr-bar .sp{width:16px;height:16px;border:2px solid #3d3200;border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ctrl-bar{display:none;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;font-family:sans-serif}
+.ctrl-bar button{padding:5px 12px;border-radius:6px;border:1px solid var(--surf2);background:var(--surf);color:var(--txt2);font-size:11px;cursor:pointer}
+.ctrl-bar button:hover:not(:disabled){color:var(--txt)}
+.ctrl-bar button:disabled{opacity:.35;cursor:not-allowed}
+.tip-box{background:var(--surf);border:1px solid var(--surf2);border-radius:8px;padding:10px 14px;font-family:sans-serif;font-size:11px;color:var(--txt3);margin-bottom:14px;line-height:1.6;display:none}
+.tip-box strong{color:var(--txt2)}
+.stats{background:var(--surf);border-radius:7px;padding:8px 14px;display:none;gap:16px;margin-bottom:14px;font-family:sans-serif;font-size:11px}
+.stats.show{display:flex}
+.sdot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}
+#pdf-wrap{position:relative;display:none;width:100%}
+#pdf-wrap canvas{display:block;border-radius:8px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.5)}
+#text-layer{position:absolute;top:0;left:0;overflow:hidden}
+.ws,.ow{position:absolute;cursor:pointer;border-radius:2px;color:transparent;white-space:nowrap;overflow:hidden;transition:background .1s}
+.ws:hover,.ow:hover{background:rgba(99,102,241,.3)!important}
+.ws.sel,.ow.sel{background:rgba(99,102,241,.5)!important}
+#popup{position:fixed;z-index:9999;width:310px;background:var(--bg);border-radius:11px;box-shadow:0 12px 48px rgba(0,0,0,.7);display:none;overflow:hidden}
+.ph{padding:12px 14px 9px;border-bottom:1px solid var(--surf2);display:flex;justify-content:space-between;align-items:flex-start}
+.pw{font-size:21px;font-weight:700;color:#f1f5f9;letter-spacing:-.02em}
+.pp{font-size:11px;color:var(--txt3);font-family:sans-serif;margin-top:2px}
+.plv{font-size:10px;font-family:sans-serif;padding:3px 8px;border-radius:20px;font-weight:700;flex-shrink:0}
+.pb{padding:11px 14px}
+.pko{font-size:18px;font-weight:700;color:var(--pur);margin-bottom:7px}
+.pex{background:var(--surf2);border-radius:6px;padding:8px 10px;font-size:12px;font-style:italic;line-height:1.6;margin-bottom:9px}
+.ptip{font-size:11px;font-family:sans-serif;color:var(--gold);background:#1c1a0a;border-left:3px solid var(--gold);padding:6px 9px;border-radius:0 5px 5px 0;line-height:1.5}
+.pun{padding:16px 14px;font-family:sans-serif;font-size:12px;color:var(--txt2)}
+.pun strong{display:block;font-size:15px;color:var(--txt);margin-bottom:5px}
+.pcls{position:absolute;top:9px;right:11px;background:none;border:none;color:var(--txt3);cursor:pointer;font-size:15px;font-family:sans-serif}
+.pft{padding:7px 14px;border-top:1px solid var(--surf2);display:flex;justify-content:flex-end}
+.pft button{font-size:10px;font-family:sans-serif;background:none;border:none;color:var(--txt3);cursor:pointer}
+.wb-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.wb-hdr h2{font-family:sans-serif;font-size:14px;font-weight:600;color:var(--txt2)}
+.wb-empty{text-align:center;color:var(--surf2);font-family:sans-serif;font-size:13px;padding:50px 0}
+.wb-empty big{display:block;font-size:38px;margin-bottom:10px}
+.wcard{background:var(--surf);border:1px solid var(--surf2);border-radius:8px;padding:12px 14px;display:flex;align-items:flex-start;gap:12px;margin-bottom:7px}
+.wc-en{font-size:15px;font-weight:700;color:#f1f5f9}
+.wc-pos{font-size:10px;font-family:sans-serif;color:var(--txt3);margin-left:5px}
+.wc-ko{font-size:13px;color:var(--pur);font-weight:600;margin-top:2px}
+.wc-ex{font-size:10px;font-family:sans-serif;color:var(--txt3);margin-top:3px;font-style:italic}
+.clrbtn{font-size:11px;font-family:sans-serif;background:none;border:1px solid var(--surf2);color:var(--txt3);padding:3px 9px;border-radius:5px;cursor:pointer}
+.loader{text-align:center;padding:40px;font-family:sans-serif;color:var(--txt3)}
+.lsp{display:inline-block;width:28px;height:28px;border:3px solid var(--surf2);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:10px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">📖</div>
+  <div class="logo-text">
+    <h1>수능 어휘 사전</h1>
+    <p>PDF 위 단어 클릭 → 뜻 즉시 팝업</p>
+  </div>
+  <div class="hdr-tabs">
+    <button class="tbtn on" onclick="showTab('viewer',this)">📄 지문</button>
+    <button class="tbtn" onclick="showTab('wordbook',this)" id="wb-tab">📚 단어장</button>
+  </div>
+</header>
+
+<div class="main">
+<div class="panel on" id="panel-viewer">
+<div style="max-width:860px;margin:0 auto">
+  <div id="upload-area">
+    <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()">
+      <span class="icon">📄</span>
+      <p><strong>PDF 파일을 드래그하거나 클릭해서 선택하세요</strong></p>
+      <p style="margin-top:6px">텍스트 PDF · 스캔 이미지 PDF 모두 지원</p>
+      <button class="up-btn" onclick="event.stopPropagation();document.getElementById('fi').click()">파일 선택</button>
+    </div>
+    <input type="file" id="fi" accept=".pdf" style="display:none">
+  </div>
+  <div class="ocr-bar" id="ocr-bar"><div class="sp"></div><div id="ocr-msg">OCR 처리 중…</div></div>
+  <div class="tip-box" id="tip-box">
+    💡 <strong>사용법:</strong> PDF 위의 단어를 클릭하면 수능 어휘 DB에서 뜻이 표시됩니다.
+    이미지(스캔) PDF는 OCR로 자동 인식합니다.
+  </div>
+  <div class="stats" id="stats">
+    <div><span class="sdot" style="background:var(--grn)"></span><span style="font-family:sans-serif;font-size:11px">기본 <b id="ct-b">0</b></span></div>
+    <div><span class="sdot" style="background:var(--yel)"></span><span style="font-family:sans-serif;font-size:11px">중급 <b id="ct-m">0</b></span></div>
+    <div><span class="sdot" style="background:var(--red)"></span><span style="font-family:sans-serif;font-size:11px">고급 <b id="ct-a">0</b></span></div>
+    <div style="margin-left:auto;font-family:sans-serif;font-size:11px">조회 <b id="ct-l">0</b></div>
+  </div>
+  <div class="ctrl-bar" id="ctrl-bar">
+    <button onclick="changePage(-1)" id="bp">◀ 이전</button>
+    <span style="font-size:11px;color:var(--txt2)"><span id="cp">1</span> / <span id="tp">1</span> 페이지</span>
+    <button onclick="changePage(1)" id="bn">다음 ▶</button>
+    <button onclick="changeZoom(-.2)">−</button>
+    <button onclick="changeZoom(.2)">+</button>
+    <button onclick="resetPDF()" style="margin-left:auto;color:var(--txt3)">📄 다른 파일</button>
+  </div>
+  <div id="pdf-loader" class="loader" style="display:none"><div class="lsp"></div><div>PDF 불러오는 중…</div></div>
+  <div id="pdf-wrap">
+    <canvas id="pdfcanvas"></canvas>
+    <div id="text-layer"></div>
+  </div>
+</div>
+</div>
+
+<div class="panel" id="panel-wordbook">
+<div style="max-width:680px;margin:0 auto">
+  <div class="wb-hdr">
+    <h2>단어장 — <span id="wb-cnt">0</span>개</h2>
+    <button class="clrbtn" onclick="clearWB()">전체 삭제</button>
+  </div>
+  <div id="wb-list"><div class="wb-empty"><big>📚</big>아직 조회한 단어가 없습니다</div></div>
+</div>
+</div>
+</div>
+
+<div id="popup">
+  <button class="pcls" onclick="closePopup()">✕</button>
+  <div id="pop-content"></div>
+  <div class="pft"><button onclick="closePopup()">닫기</button></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script type="module">
+import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs";
+
+// ── Vocab DB ──
+const V = {"abandon":{"ko":"포기하다, 버리다","pos":"v.","ex":"They had to abandon the plan.","level":"중"},"abstract":{"ko":"추상적인; 요약","pos":"adj./n.","ex":"Abstract thinking is essential.","level":"상"},"access":{"ko":"접근(하다)","pos":"n./v.","ex":"We need access to information.","level":"중"},"accommodate":{"ko":"수용하다, 적응시키다","pos":"v.","ex":"The hotel can accommodate guests.","level":"상"},"accomplish":{"ko":"성취하다, 이루다","pos":"v.","ex":"She accomplished her goals.","level":"중"},"accurate":{"ko":"정확한","pos":"adj.","ex":"The data must be accurate.","level":"중"},"achieve":{"ko":"달성하다, 성취하다","pos":"v.","ex":"Hard work helps achieve success.","level":"하"},"acknowledge":{"ko":"인정하다, 감사하다","pos":"v.","ex":"He acknowledged his mistake.","level":"중"},"acquire":{"ko":"획득하다, 습득하다","pos":"v.","ex":"Children acquire language naturally.","level":"중"},"adapt":{"ko":"적응하다, 조정하다","pos":"v.","ex":"Animals adapt to their environment.","level":"중"},"adequate":{"ko":"충분한, 적절한","pos":"adj.","ex":"We need adequate funding.","level":"중"},"advocate":{"ko":"지지하다; 지지자","pos":"v./n.","ex":"She advocates for equal rights.","level":"상"},"affect":{"ko":"영향을 미치다","pos":"v.","ex":"Stress affects our health.","level":"하"},"aggregate":{"ko":"합계; 집합적인","pos":"n./adj.","ex":"The aggregate results were positive.","level":"상"},"aid":{"ko":"돕다; 도움","pos":"v./n.","ex":"Foreign aid helps developing nations.","level":"중"},"alert":{"ko":"경계하는; 경보","pos":"adj./n.","ex":"Stay alert to danger.","level":"중"},"allocate":{"ko":"할당하다, 배분하다","pos":"v.","ex":"Resources were allocated fairly.","level":"상"},"alter":{"ko":"변경하다, 바꾸다","pos":"v.","ex":"Climate change alters ecosystems.","level":"중"},"alternative":{"ko":"대안; 대안적인","pos":"n./adj.","ex":"We need an alternative solution.","level":"중"},"ambiguous":{"ko":"모호한, 애매한","pos":"adj.","ex":"The message was ambiguous.","level":"상"},"analyze":{"ko":"분석하다","pos":"v.","ex":"We must analyze the data carefully.","level":"중"},"anticipate":{"ko":"예상하다, 기대하다","pos":"v.","ex":"We anticipate growth next year.","level":"중"},"apparent":{"ko":"명백한, 분명한","pos":"adj.","ex":"The cause was apparent.","level":"중"},"appeal":{"ko":"매력; 호소하다","pos":"n./v.","ex":"The idea has broad appeal.","level":"중"},"apply":{"ko":"적용하다; 신청하다","pos":"v.","ex":"Apply the rules consistently.","level":"하"},"appreciate":{"ko":"감사하다; 이해하다; 가치를 인정하다","pos":"v.","ex":"I appreciate your help.","level":"하"},"approach":{"ko":"접근(하다); 방법","pos":"n./v.","ex":"A new approach is needed.","level":"하"},"appropriate":{"ko":"적절한","pos":"adj.","ex":"Choose appropriate language.","level":"중"},"aspect":{"ko":"측면, 양상","pos":"n.","ex":"Every aspect was considered.","level":"중"},"assert":{"ko":"주장하다, 단언하다","pos":"v.","ex":"She asserted her independence.","level":"상"},"assess":{"ko":"평가하다","pos":"v.","ex":"We need to assess the risk.","level":"중"},"assume":{"ko":"가정하다; 떠맡다","pos":"v.","ex":"Don't assume the worst.","level":"중"},"attitude":{"ko":"태도, 자세","pos":"n.","ex":"A positive attitude matters.","level":"하"},"attribute":{"ko":"~의 탓으로 돌리다; 속성","pos":"v./n.","ex":"Success is attributed to effort.","level":"상"},"authority":{"ko":"권위; 당국","pos":"n.","ex":"The authority made a decision.","level":"중"},"available":{"ko":"이용 가능한","pos":"adj.","ex":"Resources are available online.","level":"하"},"aware":{"ko":"알고 있는, 인식하는","pos":"adj.","ex":"Be aware of the consequences.","level":"하"},"barrier":{"ko":"장벽, 장애물","pos":"n.","ex":"Language can be a barrier.","level":"중"},"beneficial":{"ko":"유익한, 이로운","pos":"adj.","ex":"Exercise is beneficial for health.","level":"중"},"bias":{"ko":"편견; 편향시키다","pos":"n./v.","ex":"Media can create bias.","level":"중"},"bond":{"ko":"유대(감); 결합하다","pos":"n./v.","ex":"Family bonds are important.","level":"중"},"capacity":{"ko":"능력; 수용력","pos":"n.","ex":"The capacity to learn is human.","level":"중"},"challenge":{"ko":"도전; 이의를 제기하다","pos":"n./v.","ex":"Every challenge is an opportunity.","level":"하"},"characteristic":{"ko":"특징; 특유의","pos":"n./adj.","ex":"This is a characteristic pattern.","level":"중"},"circumstance":{"ko":"상황, 환경","pos":"n.","ex":"Under these circumstances, we act.","level":"중"},"cognitive":{"ko":"인지적인","pos":"adj.","ex":"Cognitive skills develop early.","level":"상"},"coherent":{"ko":"일관된, 논리적인","pos":"adj.","ex":"A coherent argument is essential.","level":"상"},"coincide":{"ko":"동시에 일어나다; 일치하다","pos":"v.","ex":"The events coincided.","level":"상"},"collaborate":{"ko":"협력하다","pos":"v.","ex":"Teams must collaborate effectively.","level":"중"},"compensate":{"ko":"보상하다","pos":"v.","ex":"Hard work compensates for lack of talent.","level":"상"},"complex":{"ko":"복잡한; 복합체","pos":"adj./n.","ex":"The issue is complex.","level":"중"},"concept":{"ko":"개념","pos":"n.","ex":"The concept of justice varies.","level":"중"},"conclude":{"ko":"결론짓다; 끝내다","pos":"v.","ex":"We can conclude from this.","level":"중"},"conflict":{"ko":"갈등; 충돌하다","pos":"n./v.","ex":"Conflict can lead to change.","level":"중"},"consequence":{"ko":"결과, 영향","pos":"n.","ex":"Actions have consequences.","level":"중"},"considerable":{"ko":"상당한","pos":"adj.","ex":"Considerable effort was made.","level":"중"},"constant":{"ko":"지속적인; 상수","pos":"adj./n.","ex":"Change is the only constant.","level":"중"},"construct":{"ko":"구성하다; 개념","pos":"v./n.","ex":"We construct meaning from experience.","level":"중"},"context":{"ko":"맥락, 상황","pos":"n.","ex":"Read words in context.","level":"중"},"contribute":{"ko":"기여하다, 공헌하다","pos":"v.","ex":"Everyone can contribute.","level":"중"},"convince":{"ko":"설득하다, 납득시키다","pos":"v.","ex":"Data convinced the committee.","level":"중"},"cope":{"ko":"대처하다, 극복하다","pos":"v.","ex":"Learning to cope with stress is vital.","level":"중"},"correspond":{"ko":"일치하다; 통신하다","pos":"v.","ex":"Results correspond to predictions.","level":"상"},"counterpart":{"ko":"상대방; 대응물","pos":"n.","ex":"The Korean counterpart agreed.","level":"상"},"crucial":{"ko":"결정적인, 중요한","pos":"adj.","ex":"Timing is crucial in this case.","level":"중"},"cultivate":{"ko":"재배하다; 키우다","pos":"v.","ex":"We must cultivate good habits.","level":"중"},"decline":{"ko":"감소하다; 거절하다","pos":"v.","ex":"Sales declined last quarter.","level":"중"},"define":{"ko":"정의하다","pos":"v.","ex":"Define your goals clearly.","level":"하"},"demonstrate":{"ko":"보여주다, 증명하다","pos":"v.","ex":"Data demonstrates the trend.","level":"중"},"determine":{"ko":"결정하다; 알아내다","pos":"v.","ex":"Genes determine some traits.","level":"중"},"diminish":{"ko":"줄어들다, 감소시키다","pos":"v.","ex":"Confidence can diminish fears.","level":"상"},"dissonance":{"ko":"불협화음; 부조화","pos":"n.","ex":"Cognitive dissonance causes discomfort.","level":"상"},"distinct":{"ko":"뚜렷한, 별개의","pos":"adj.","ex":"Two distinct categories exist.","level":"중"},"diverse":{"ko":"다양한","pos":"adj.","ex":"A diverse team performs better.","level":"중"},"dominate":{"ko":"지배하다","pos":"v.","ex":"One idea can dominate the field.","level":"중"},"dramatic":{"ko":"극적인; 연극의","pos":"adj.","ex":"A dramatic change occurred.","level":"중"},"elaborate":{"ko":"정교한; 자세히 설명하다","pos":"adj./v.","ex":"Please elaborate on that point.","level":"상"},"emerge":{"ko":"나타나다, 부상하다","pos":"v.","ex":"New technologies emerge daily.","level":"중"},"emphasize":{"ko":"강조하다","pos":"v.","ex":"Teachers emphasize key concepts.","level":"중"},"enable":{"ko":"가능하게 하다","pos":"v.","ex":"Technology enables communication.","level":"중"},"encompass":{"ko":"포함하다, 망라하다","pos":"v.","ex":"The study encompasses all ages.","level":"상"},"enhance":{"ko":"향상시키다","pos":"v.","ex":"Education enhances opportunities.","level":"중"},"enormous":{"ko":"거대한, 막대한","pos":"adj.","ex":"The task requires enormous effort.","level":"중"},"establish":{"ko":"설립하다; 확립하다","pos":"v.","ex":"Rules were established early.","level":"중"},"evaluate":{"ko":"평가하다","pos":"v.","ex":"Evaluate sources critically.","level":"중"},"evident":{"ko":"명백한","pos":"adj.","ex":"The answer is evident.","level":"중"},"evolve":{"ko":"진화하다, 발전하다","pos":"v.","ex":"Languages evolve over time.","level":"중"},"exclude":{"ko":"배제하다, 제외하다","pos":"v.","ex":"No one should be excluded.","level":"중"},"exhibit":{"ko":"보이다, 전시하다","pos":"v.","ex":"Students exhibit curiosity.","level":"중"},"expand":{"ko":"확장하다","pos":"v.","ex":"Expand your vocabulary daily.","level":"중"},"explicit":{"ko":"명시적인, 분명한","pos":"adj.","ex":"Give explicit instructions.","level":"상"},"facilitate":{"ko":"촉진하다, 용이하게 하다","pos":"v.","ex":"Good tools facilitate learning.","level":"상"},"factor":{"ko":"요인, 요소","pos":"n.","ex":"Many factors influence behavior.","level":"중"},"fervent":{"ko":"열렬한, 열정적인","pos":"adj.","ex":"A fervent believer spoke out.","level":"상"},"flexible":{"ko":"유연한","pos":"adj.","ex":"Be flexible in your approach.","level":"중"},"flourish":{"ko":"번성하다, 번창하다","pos":"v.","ex":"Ideas flourish in open spaces.","level":"상"},"focus":{"ko":"집중(하다); 초점","pos":"n./v.","ex":"Focus on what matters most.","level":"하"},"foster":{"ko":"촉진하다; 기르다","pos":"v.","ex":"Schools foster creativity.","level":"상"},"foundation":{"ko":"기초, 토대","pos":"n.","ex":"Lay a solid foundation first.","level":"중"},"function":{"ko":"기능(하다)","pos":"n./v.","ex":"What function does this serve?","level":"중"},"fundamental":{"ko":"근본적인, 기본적인","pos":"adj.","ex":"This is a fundamental principle.","level":"중"},"generate":{"ko":"생성하다, 만들어내다","pos":"v.","ex":"Ideas generate more ideas.","level":"중"},"gradual":{"ko":"점진적인","pos":"adj.","ex":"Gradual change is more stable.","level":"중"},"hypothesis":{"ko":"가설","pos":"n.","ex":"Test your hypothesis carefully.","level":"상"},"identify":{"ko":"확인하다; 동일시하다","pos":"v.","ex":"Identify the main argument.","level":"중"},"ignore":{"ko":"무시하다","pos":"v.","ex":"Don't ignore warning signs.","level":"하"},"illustrate":{"ko":"설명하다; 묘사하다","pos":"v.","ex":"Examples illustrate ideas.","level":"중"},"imminent":{"ko":"임박한","pos":"adj.","ex":"An imminent crisis demands action.","level":"상"},"impact":{"ko":"영향; 충격","pos":"n./v.","ex":"Climate has a huge impact.","level":"중"},"implement":{"ko":"실행하다, 이행하다","pos":"v.","ex":"Implement the plan carefully.","level":"중"},"imply":{"ko":"암시하다, 시사하다","pos":"v.","ex":"His silence implies agreement.","level":"중"},"impose":{"ko":"부과하다, 강요하다","pos":"v.","ex":"Rules were imposed strictly.","level":"상"},"incentive":{"ko":"동기, 유인책","pos":"n.","ex":"Incentives motivate behavior.","level":"상"},"indicate":{"ko":"나타내다, 가리키다","pos":"v.","ex":"Data indicates a trend.","level":"중"},"inevitable":{"ko":"불가피한","pos":"adj.","ex":"Change is inevitable.","level":"상"},"influence":{"ko":"영향(을 미치다)","pos":"n./v.","ex":"Peers influence behavior.","level":"하"},"inherent":{"ko":"내재적인, 고유의","pos":"adj.","ex":"There is inherent value in effort.","level":"상"},"initiative":{"ko":"주도권; 계획","pos":"n.","ex":"Take initiative in your studies.","level":"상"},"innovate":{"ko":"혁신하다","pos":"v.","ex":"Great companies constantly innovate.","level":"중"},"insight":{"ko":"통찰(력)","pos":"n.","ex":"Reading gives insight into life.","level":"중"},"integrate":{"ko":"통합하다","pos":"v.","ex":"Integrate knowledge from all subjects.","level":"상"},"interpret":{"ko":"해석하다, 통역하다","pos":"v.","ex":"Interpret the data carefully.","level":"중"},"intrinsic":{"ko":"본질적인, 내재적인","pos":"adj.","ex":"Intrinsic motivation is powerful.","level":"상"},"justify":{"ko":"정당화하다","pos":"v.","ex":"Justify your answer with evidence.","level":"중"},"largely":{"ko":"주로, 대체로","pos":"adv.","ex":"It is largely a matter of practice.","level":"중"},"legitimate":{"ko":"합법적인; 정당한","pos":"adj.","ex":"A legitimate concern was raised.","level":"상"},"maintain":{"ko":"유지하다; 주장하다","pos":"v.","ex":"Maintain a healthy lifestyle.","level":"중"},"manifest":{"ko":"나타나다; 명백한","pos":"v./adj.","ex":"Stress can manifest physically.","level":"상"},"manipulate":{"ko":"조작하다","pos":"v.","ex":"Don't manipulate the data.","level":"상"},"mechanism":{"ko":"메커니즘, 구조","pos":"n.","ex":"Defense mechanisms protect the mind.","level":"상"},"minimize":{"ko":"최소화하다","pos":"v.","ex":"Minimize risk before acting.","level":"중"},"modify":{"ko":"수정하다, 변경하다","pos":"v.","ex":"Modify your approach if needed.","level":"중"},"motivate":{"ko":"동기를 부여하다","pos":"v.","ex":"Praise motivates students.","level":"중"},"mutual":{"ko":"상호의","pos":"adj.","ex":"Mutual respect is essential.","level":"중"},"neglect":{"ko":"무시하다; 방치","pos":"v./n.","ex":"Don't neglect your health.","level":"중"},"neutral":{"ko":"중립적인","pos":"adj.","ex":"Try to stay neutral.","level":"중"},"notion":{"ko":"개념, 생각","pos":"n.","ex":"The notion of fairness is complex.","level":"상"},"objective":{"ko":"목표; 객관적인","pos":"n./adj.","ex":"Set clear objectives.","level":"중"},"obstacle":{"ko":"장애물","pos":"n.","ex":"Overcome every obstacle.","level":"중"},"obtain":{"ko":"얻다, 획득하다","pos":"v.","ex":"Obtain permission first.","level":"중"},"obvious":{"ko":"명백한","pos":"adj.","ex":"The solution is obvious.","level":"하"},"occur":{"ko":"발생하다","pos":"v.","ex":"Problems occur unexpectedly.","level":"중"},"outcome":{"ko":"결과, 성과","pos":"n.","ex":"The outcome was surprising.","level":"중"},"overcome":{"ko":"극복하다","pos":"v.","ex":"Overcome fear through action.","level":"중"},"paradox":{"ko":"역설","pos":"n.","ex":"Time is a paradox.","level":"상"},"paradoxically":{"ko":"역설적으로","pos":"adv.","ex":"Paradoxically, less is more.","level":"상"},"perceive":{"ko":"인식하다, 지각하다","pos":"v.","ex":"We perceive the world differently.","level":"중"},"perspective":{"ko":"관점, 시각","pos":"n.","ex":"Consider all perspectives.","level":"중"},"phenomenon":{"ko":"현상","pos":"n.","ex":"It is a widespread phenomenon.","level":"상"},"potential":{"ko":"잠재력; 잠재적인","pos":"n./adj.","ex":"Every student has potential.","level":"중"},"precise":{"ko":"정확한, 정밀한","pos":"adj.","ex":"Use precise language.","level":"중"},"predict":{"ko":"예측하다","pos":"v.","ex":"We cannot predict the future.","level":"중"},"predominant":{"ko":"지배적인, 주된","pos":"adj.","ex":"This is the predominant view.","level":"상"},"preserve":{"ko":"보존하다","pos":"v.","ex":"Preserve cultural heritage.","level":"중"},"prevalent":{"ko":"만연한, 널리 퍼진","pos":"adj.","ex":"Smartphones are prevalent today.","level":"상"},"principle":{"ko":"원칙, 원리","pos":"n.","ex":"Act on principle, not emotion.","level":"중"},"profound":{"ko":"심오한, 깊은","pos":"adj.","ex":"A profound impact was felt.","level":"상"},"promote":{"ko":"촉진하다; 홍보하다","pos":"v.","ex":"Promote healthy behavior.","level":"중"},"proportion":{"ko":"비율, 비례","pos":"n.","ex":"A large proportion agreed.","level":"중"},"propose":{"ko":"제안하다","pos":"v.","ex":"She proposed a new solution.","level":"중"},"psychological":{"ko":"심리적인","pos":"adj.","ex":"Psychological factors matter.","level":"중"},"pursue":{"ko":"추구하다","pos":"v.","ex":"Pursue your dreams boldly.","level":"중"},"rationalize":{"ko":"합리화하다","pos":"v.","ex":"We often rationalize bad choices.","level":"상"},"realistic":{"ko":"현실적인","pos":"adj.","ex":"Set realistic goals.","level":"중"},"recognize":{"ko":"인식하다; 인정하다","pos":"v.","ex":"Recognize your own limits.","level":"중"},"reflect":{"ko":"반영하다; 반성하다","pos":"v.","ex":"Reflect on past mistakes.","level":"중"},"reinforce":{"ko":"강화하다","pos":"v.","ex":"Praise reinforces good behavior.","level":"중"},"relevant":{"ko":"관련된, 적절한","pos":"adj.","ex":"Stay relevant in your field.","level":"중"},"rely":{"ko":"의존하다, 믿다","pos":"v.","ex":"Don't rely on luck alone.","level":"중"},"remarkable":{"ko":"주목할 만한","pos":"adj.","ex":"A remarkable achievement.","level":"중"},"resolve":{"ko":"해결하다; 결심하다","pos":"v.","ex":"Resolve conflicts peacefully.","level":"중"},"resource":{"ko":"자원","pos":"n.","ex":"Use resources wisely.","level":"중"},"resist":{"ko":"저항하다","pos":"v.","ex":"Resist temptation to give up.","level":"중"},"reveal":{"ko":"드러내다, 밝히다","pos":"v.","ex":"Research reveals surprising truths.","level":"중"},"significant":{"ko":"중요한; 상당한","pos":"adj.","ex":"A significant change occurred.","level":"중"},"stimulate":{"ko":"자극하다","pos":"v.","ex":"Questions stimulate thinking.","level":"중"},"strategy":{"ko":"전략","pos":"n.","ex":"Develop a clear strategy.","level":"중"},"subsequent":{"ko":"그 다음의, 이후의","pos":"adj.","ex":"Subsequent events confirmed it.","level":"상"},"subtle":{"ko":"미묘한","pos":"adj.","ex":"Subtle differences matter.","level":"상"},"sufficient":{"ko":"충분한","pos":"adj.","ex":"Evidence must be sufficient.","level":"중"},"superficial":{"ko":"피상적인","pos":"adj.","ex":"Avoid superficial understanding.","level":"상"},"sustain":{"ko":"유지하다; 지탱하다","pos":"v.","ex":"Sustain effort over time.","level":"중"},"tendency":{"ko":"경향","pos":"n.","ex":"There is a tendency to avoid change.","level":"중"},"transform":{"ko":"변환하다, 바꾸다","pos":"v.","ex":"Education transforms lives.","level":"중"},"transmit":{"ko":"전달하다, 전송하다","pos":"v.","ex":"Culture is transmitted through stories.","level":"상"},"ultimately":{"ko":"궁극적으로","pos":"adv.","ex":"Hard work ultimately pays off.","level":"중"},"underlying":{"ko":"근본적인, 기저의","pos":"adj.","ex":"Find the underlying cause.","level":"상"},"universal":{"ko":"보편적인","pos":"adj.","ex":"Justice is a universal value.","level":"중"},"valid":{"ko":"유효한, 타당한","pos":"adj.","ex":"A valid argument must be logical.","level":"중"},"vary":{"ko":"다양하다; 변하다","pos":"v.","ex":"Opinions vary widely.","level":"중"},"whereas":{"ko":"반면에","pos":"conj.","ex":"He works hard, whereas she rests.","level":"중"},"widespread":{"ko":"광범위한, 널리 퍼진","pos":"adj.","ex":"Widespread agreement was reached.","level":"중"}};
+const TIPS = {
+  '하':'수능 필수 기초 어휘입니다. 반드시 암기하세요.',
+  '중':'수능 지문에 자주 등장하는 중요 어휘입니다. 문맥 속 의미를 파악하세요.',
+  '상':'수능 고난도 지문의 핵심 어휘입니다. 정확한 뜻과 쓰임을 익히세요.'
+};
+const LC = {'하':'var(--grn)','중':'var(--yel)','상':'var(--red)'};
+const LL = {'하':'BASIC','중':'INTER','상':'ADV'};
+
+// ── State ──
+let pdfDoc=null, curPage=1, totPages=0, scale=1.4, selSpan=null;
+let wordbook = JSON.parse(sessionStorage.getItem('wb')||'[]');
+let looked = 0;
+let ocrCache = {}; // pageNum → [{word,x,y,w,h}]
+let tWorker = null;
+
+// ── Tab ──
+window.showTab = function(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tbtn').forEach(b => b.classList.remove('on'));
+  document.getElementById('panel-' + id).classList.add('on');
+  btn.classList.add('on');
+  if (id === 'wordbook') renderWB();
+  closePopup();
+};
+
+function updateBadge() {
+  const n = wordbook.length;
+  document.getElementById('wb-tab').textContent = `📚 단어장${n ? ' (' + n + ')' : ''}`;
+  document.getElementById('wb-cnt').textContent = n;
+  let b=0, m=0, a=0;
+  wordbook.forEach(w => { if(w.level==='하') b++; else if(w.level==='중') m++; else a++; });
+  document.getElementById('ct-b').textContent = b;
+  document.getElementById('ct-m').textContent = m;
+  document.getElementById('ct-a').textContent = a;
+}
+
+// ── Tesseract worker ──
+async function getTWorker() {
+  if (tWorker) return tWorker;
+  tWorker = await Tesseract.createWorker('eng', 1, {
+    logger: () => {}
+  });
+  return tWorker;
+}
+
+// ── File input ──
+document.getElementById('fi').addEventListener('change', function() {
+  if (this.files[0]) loadPDFFile(this.files[0]);
+});
+
+const dz = document.getElementById('dz');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type === 'application/pdf') loadPDFFile(f);
+});
+
+async function loadPDFFile(file) {
+  document.getElementById('upload-area').style.display = 'none';
+  document.getElementById('pdf-loader').style.display = 'block';
+  const ab = await file.arrayBuffer();
+  pdfDoc = await pdfjsLib.getDocument({ data: ab }).promise;
+  totPages = pdfDoc.numPages; curPage = 1;
+  document.getElementById('pdf-loader').style.display = 'none';
+  document.getElementById('pdf-wrap').style.display = 'block';
+  document.getElementById('ctrl-bar').style.display = 'flex';
+  document.getElementById('tip-box').style.display = 'block';
+  document.getElementById('stats').classList.add('show');
+  document.getElementById('tp').textContent = totPages;
+  await renderPage(curPage);
+}
+
+window.resetPDF = function() {
+  pdfDoc=null; curPage=1; totPages=0; ocrCache={};
+  ['pdf-wrap','ctrl-bar','tip-box','ocr-bar'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  document.getElementById('stats').classList.remove('show');
+  document.getElementById('upload-area').style.display = 'block';
+  document.getElementById('fi').value = '';
+  closePopup();
+};
+
+window.changePage = async function(d) {
+  const n = curPage + d;
+  if (n < 1 || n > totPages) return;
+  curPage = n; closePopup();
+  await renderPage(curPage);
+};
+
+window.changeZoom = async function(d) {
+  scale = Math.max(.6, Math.min(3.0, scale + d));
+  closePopup(); await renderPage(curPage);
+};
+
+// ── Render ──
+async function renderPage(num) {
+  if (!pdfDoc) return;
+  document.getElementById('cp').textContent = num;
+  document.getElementById('bp').disabled = num <= 1;
+  document.getElementById('bn').disabled = num >= totPages;
+
+  const page = await pdfDoc.getPage(num);
+  const vp = page.getViewport({ scale });
+  const canvas = document.getElementById('pdfcanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = vp.width; canvas.height = vp.height;
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+
+  const tl = document.getElementById('text-layer');
+  tl.innerHTML = '';
+  tl.style.cssText = `position:absolute;top:0;left:0;width:${vp.width}px;height:${vp.height}px;transform-origin:top left;`;
+  // Scale text layer to match canvas display width
+  const displayW = canvas.offsetWidth || canvas.width;
+  const ratio = displayW / vp.width;
+  tl.style.transform = `scale(${ratio})`;
+
+  // Try PDF text layer
+  const tc = await page.getTextContent();
+  const words = extractTextWords(tc, vp);
+  if (words.length > 5) {
+    buildTextLayer(tl, words, vp);
+  } else {
+    // OCR path
+    if (ocrCache[num]) {
+      buildOCRLayer(tl, ocrCache[num]);
+    } else {
+      await runOCR(num, canvas, tl, vp);
+    }
+  }
+}
+
+function extractTextWords(tc, vp) {
+  const result = [];
+  for (const item of tc.items) {
+    if (!item.str || !item.str.trim()) continue;
+    const [a, b, , , tx, ty] = item.transform;
+    const scaleX = Math.sqrt(a*a + b*b);
+    const itemW = (item.width || 0) * scaleX;
+    const parts = item.str.split(/\s+/);
+    let off = 0, total = item.str.length;
+    for (const raw of parts) {
+      if (!raw) { off++; continue; }
+      const clean = raw.replace(/[^a-zA-Z'-]/g, '');
+      if (clean.length >= 2) {
+        const rx = off / Math.max(total, 1);
+        const rw = raw.length / Math.max(total, 1);
+        result.push({ word: clean, x: tx + rx * itemW, y: vp.height - ty, w: Math.max(rw * itemW, clean.length * 7), h: 18 });
+      }
+      off += raw.length + 1;
+    }
+  }
+  return result;
+}
+
+function buildTextLayer(layer, words) {
+  for (const { word, x, y, w, h } of words) {
+    const s = document.createElement('span');
+    s.className = 'ws';
+    s.dataset.word = word;
+    s.style.cssText = `left:${x}px;top:${y-h}px;width:${w}px;height:${h+6}px;`;
+    s.addEventListener('click', e => { e.stopPropagation(); onWord(word, e); });
+    layer.appendChild(s);
+  }
+}
+
+async function runOCR(num, canvas, layer, vp) {
+  const bar = document.getElementById('ocr-bar');
+  bar.style.display = 'flex';
+  document.getElementById('ocr-msg').textContent = `이미지 PDF OCR 처리 중… (${num}/${totPages}페이지) 잠시 기다려주세요`;
+  try {
+    const tw = await getTWorker();
+    const url = canvas.toDataURL('image/png');
+    const { data: { words } } = await tw.recognize(url);
+    const sw = vp.width / canvas.width, sh = vp.height / canvas.height;
+    const items = [];
+    for (const w of words) {
+      if (!w.text || w.confidence < 35) continue;
+      const clean = w.text.replace(/[^a-zA-Z'-]/g, '');
+      if (clean.length < 2) continue;
+      items.push({
+        word: clean,
+        x: w.bbox.x0 * sw, y: w.bbox.y0 * sh,
+        w: (w.bbox.x1 - w.bbox.x0) * sw, h: (w.bbox.y1 - w.bbox.y0) * sh
+      });
+    }
+    ocrCache[num] = items;
+    buildOCRLayer(layer, items);
+  } catch(e) {
+    document.getElementById('ocr-msg').textContent = 'OCR 오류 — 파일을 다시 시도해 보세요';
+    setTimeout(() => bar.style.display = 'none', 3000);
+    return;
+  }
+  bar.style.display = 'none';
+}
+
+function buildOCRLayer(layer, items) {
+  for (const { word, x, y, w, h } of items) {
+    const s = document.createElement('span');
+    s.className = 'ow';
+    s.dataset.word = word;
+    s.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;`;
+    s.addEventListener('click', e => { e.stopPropagation(); onWord(word, e); });
+    layer.appendChild(s);
+  }
+}
+
+// ── Word click ──
+function onWord(word, e) {
+  if (selSpan) selSpan.classList.remove('sel');
+  selSpan = e.target; selSpan.classList.add('sel');
+  looked++; document.getElementById('ct-l').textContent = looked;
+  showPopup(word, e.clientX, e.clientY);
+}
+
+function showPopup(word, cx, cy) {
+  const lower = word.toLowerCase();
+  const entry = V[lower];
+  const pop = document.getElementById('popup');
+  const content = document.getElementById('pop-content');
+  if (entry) {
+    if (!wordbook.find(w => w.word === lower)) {
+      wordbook.unshift({ word: lower, ...entry });
+      if (wordbook.length > 60) wordbook = wordbook.slice(0, 60);
+      sessionStorage.setItem('wb', JSON.stringify(wordbook));
+      updateBadge();
+    }
+    const lc = LC[entry.level] || 'var(--pur)';
+    content.innerHTML = `
+      <div class="ph">
+        <div><div class="pw">${word}</div><div class="pp">${entry.pos}</div></div>
+        <div class="plv" style="background:${lc}22;color:${lc}">${LL[entry.level]||''}</div>
+      </div>
+      <div class="pb">
+        <div class="pko">${entry.ko}</div>
+        <div class="pex">${entry.ex}</div>
+        <div class="ptip">✏️ ${TIPS[entry.level]||''}</div>
+      </div>`;
+    pop.style.border = `1px solid ${lc}66`;
+    pop.style.boxShadow = `0 12px 48px rgba(0,0,0,.7),0 0 0 1px ${lc}22`;
+  } else {
+    content.innerHTML = `
+      <div class="pun">
+        <strong>${word}</strong>
+        수능 어휘 DB에 없는 단어입니다.<br>
+        <span style="font-size:10px;color:var(--txt3);margin-top:4px;display:block">사전에서 직접 확인하세요.</span>
+      </div>`;
+    pop.style.border = '1px solid var(--surf2)';
+    pop.style.boxShadow = '0 8px 32px rgba(0,0,0,.5)';
+  }
+  const pw = 310, ph = 250;
+  let left = cx + 10, top = cy + 10;
+  if (left + pw > window.innerWidth - 8) left = cx - pw - 10;
+  if (top + ph > window.innerHeight - 8) top = cy - ph - 10;
+  pop.style.left = Math.max(4, left) + 'px';
+  pop.style.top = Math.max(4, top) + 'px';
+  pop.style.display = 'block';
+}
+
+window.closePopup = function() {
+  document.getElementById('popup').style.display = 'none';
+  if (selSpan) { selSpan.classList.remove('sel'); selSpan = null; }
+};
+
+// ── Wordbook ──
+function renderWB() {
+  const list = document.getElementById('wb-list');
+  if (!wordbook.length) {
+    list.innerHTML = '<div class="wb-empty"><big>📚</big>아직 조회한 단어가 없습니다</div>';
+    return;
+  }
+  list.innerHTML = wordbook.map(w => `
+    <div class="wcard">
+      <div style="flex:1">
+        <div><span class="wc-en">${w.word}</span><span class="wc-pos">${w.pos}</span></div>
+        <div class="wc-ko">${w.ko}</div>
+        <div class="wc-ex">${w.ex}</div>
+      </div>
+      <div style="font-size:10px;font-family:sans-serif;background:${(LC[w.level]||'var(--pur)')}22;color:${LC[w.level]||'var(--pur)'};padding:3px 8px;border-radius:20px;font-weight:700;white-space:nowrap;align-self:flex-start">${LL[w.level]||''}</div>
+    </div>`).join('');
+}
+
+window.clearWB = function() {
+  if (!confirm('단어장을 모두 지울까요?')) return;
+  wordbook = []; sessionStorage.removeItem('wb');
+  updateBadge(); renderWB();
+};
+
+// ── Keys ──
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closePopup();
+  if (e.key === 'ArrowRight' && pdfDoc) changePage(1);
+  if (e.key === 'ArrowLeft' && pdfDoc) changePage(-1);
+});
+
+updateBadge();
+</script>
+</body>
+</html>
