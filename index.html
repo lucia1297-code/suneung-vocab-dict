@@ -287,11 +287,14 @@ async function renderPage(num) {
 
 function extractTextWords(tc, vp) {
   const result = [];
+  // item.transform/item.width from pdf.js getTextContent() are in unscaled
+  // PDF user space (not the render viewport), so they must be multiplied by
+  // the current render `scale` to line up with the canvas/text-layer pixels.
   for (const item of tc.items) {
     if (!item.str || !item.str.trim()) continue;
-    const [a, b, , , tx, ty] = item.transform;
-    const scaleX = Math.sqrt(a*a + b*b);
-    const itemW = (item.width || 0) * scaleX;
+    const [, , , , tx, ty] = item.transform;
+    const itemW = (item.width || 0) * scale;
+    const itemH = (item.height || 14) * scale;
     const parts = item.str.split(/\s+/);
     let off = 0, total = item.str.length;
     for (const raw of parts) {
@@ -300,7 +303,7 @@ function extractTextWords(tc, vp) {
       if (clean.length >= 2) {
         const rx = off / Math.max(total, 1);
         const rw = raw.length / Math.max(total, 1);
-        result.push({ word: clean, x: tx + rx * itemW, y: vp.height - ty, w: Math.max(rw * itemW, clean.length * 7), h: 18 });
+        result.push({ word: clean, x: tx * scale + rx * itemW, y: vp.height - ty * scale, w: Math.max(rw * itemW, clean.length * 7), h: itemH });
       }
       off += raw.length + 1;
     }
