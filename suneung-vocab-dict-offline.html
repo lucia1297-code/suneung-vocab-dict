@@ -462,20 +462,12 @@ function wireTextLayerClicks(container) {
   });
 }
 
-function wordAtPoint(x, y) {
-  let node, offset;
-  if (document.caretRangeFromPoint) {
-    const r = document.caretRangeFromPoint(x, y);
-    if (!r) return null;
-    node = r.startContainer; offset = r.startOffset;
-  } else if (document.caretPositionFromPoint) {
-    const p = document.caretPositionFromPoint(x, y);
-    if (!p) return null;
-    node = p.offsetNode; offset = p.offset;
-  } else {
-    return null;
-  }
-  if (node.nodeType !== Node.TEXT_NODE) return null;
+function pointInRect(x, y, rect, tolerance) {
+  return rect && x >= rect.left - tolerance && x <= rect.right + tolerance &&
+         y >= rect.top - tolerance && y <= rect.bottom + tolerance;
+}
+
+function wordFromTextNode(node, offset) {
   const text = node.textContent;
   const isWordChar = c => /[a-zA-Z'-]/.test(c);
   let start = offset, end = offset;
@@ -488,6 +480,50 @@ function wordAtPoint(x, y) {
   range.setEnd(node, end);
   const rect = range.getClientRects()[0] || range.getBoundingClientRect();
   return { word: clean, rect };
+}
+
+// document.caretRangeFromPoint/caretPositionFromPoint occasionally resolve to
+// the wrong character on some browser/font combinations for text inside a
+// CSS-transformed (scaleX-corrected) span, which would silently look up the
+// wrong word. Scan every word in the text layer directly and pick the one
+// whose own rendered box actually contains the click point.
+function wordAtPointByScan(x, y) {
+  const spans = document.querySelectorAll('#text-layer span[role="presentation"]');
+  for (const span of spans) {
+    if (!pointInRect(x, y, span.getBoundingClientRect(), 0)) continue;
+    const node = span.firstChild;
+    if (!node || node.nodeType !== Node.TEXT_NODE) continue;
+    const text = node.textContent;
+    const re = /[a-zA-Z'-]+/g;
+    let m;
+    while ((m = re.exec(text))) {
+      if (m[0].length < 2) continue;
+      const range = document.createRange();
+      range.setStart(node, m.index);
+      range.setEnd(node, m.index + m[0].length);
+      const rect = range.getClientRects()[0];
+      if (pointInRect(x, y, rect, 1)) {
+        return { word: m[0].replace(/[^a-zA-Z'-]/g, ''), rect };
+      }
+    }
+  }
+  return null;
+}
+
+function wordAtPoint(x, y) {
+  let node, offset, hit = null;
+  if (document.caretRangeFromPoint) {
+    const r = document.caretRangeFromPoint(x, y);
+    if (r && r.startContainer.nodeType === Node.TEXT_NODE) { node = r.startContainer; offset = r.startOffset; }
+  } else if (document.caretPositionFromPoint) {
+    const p = document.caretPositionFromPoint(x, y);
+    if (p && p.offsetNode.nodeType === Node.TEXT_NODE) { node = p.offsetNode; offset = p.offset; }
+  }
+  if (node) hit = wordFromTextNode(node, offset);
+  if (hit && pointInRect(x, y, hit.rect, 1)) return hit;
+  // The browser's own caret hit-test didn't land inside the word it named —
+  // fall back to a direct geometric scan instead of trusting it.
+  return wordAtPointByScan(x, y) || hit;
 }
 
 async function runOCR(doc, num, canvas, layer, vp) {
